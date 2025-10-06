@@ -25,12 +25,15 @@ const Chat = ({ isOpen, onClose, roomId, userName, ws }) => {
       const data = JSON.parse(event.data);
       
       if (data.type === 'chat_message') {
-        setMessages(prev => [...prev, {
-          id: Date.now() + Math.random(),
-          user: data.user_name,
-          message: data.message,
-          timestamp: new Date(data.timestamp)
-        }]);
+        // Only add messages from other users (not from current user to prevent duplicates)
+        if (data.user_name !== userName) {
+          setMessages(prev => [...prev, {
+            id: Date.now() + Math.random(),
+            user: data.user_name,
+            message: data.message,
+            timestamp: new Date(data.timestamp)
+          }]);
+        }
       } else if (data.type === 'user_typing') {
         if (data.user_name !== userName) {
           setTypingUsers(prev => {
@@ -66,21 +69,27 @@ const Chat = ({ isOpen, onClose, roomId, userName, ws }) => {
       timestamp: new Date().toISOString()
     };
 
+    // Add message to local state immediately (optimistic update)
+    const localMessage = {
+      id: Date.now(),
+      user: userName,
+      message: newMessage.trim(),
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, localMessage]);
+
     // Try WebSocket first
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(messageData));
-      
-      // Add message to local state immediately for WebSocket
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        user: userName,
-        message: newMessage.trim(),
-        timestamp: new Date()
-      }]);
+      console.log('Message sent via WebSocket');
     } else {
       // Fallback to REST API
-      sendMessageViaAPI(messageData);
-      // Don't add to local state - let polling fetch it
+      console.log('WebSocket not available, sending via REST API');
+      sendMessageViaAPI(messageData).catch(error => {
+        console.error('Failed to send message via REST API:', error);
+        // Remove message from local state if sending failed
+        setMessages(prev => prev.filter(msg => msg.id !== localMessage.id));
+      });
     }
 
     setNewMessage('');
@@ -121,7 +130,14 @@ const Chat = ({ isOpen, onClose, roomId, userName, ws }) => {
           message: msg.message,
           timestamp: new Date(msg.timestamp)
         }));
-        setMessages(fetchedMessages);
+        
+        // Only update if we have new messages or different count
+        setMessages(prev => {
+          if (prev.length !== fetchedMessages.length) {
+            return fetchedMessages;
+          }
+          return prev;
+        });
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -133,8 +149,11 @@ const Chat = ({ isOpen, onClose, roomId, userName, ws }) => {
     let pollInterval;
     
     if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.log('WebSocket not available, starting message polling');
       fetchMessages(); // Initial fetch
       pollInterval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
+    } else {
+      console.log('WebSocket connected, stopping message polling');
     }
 
     return () => {
