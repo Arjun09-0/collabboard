@@ -4,6 +4,7 @@ import Toolbar from './components/Toolbar';
 import PlatformTools from './components/PlatformTools';
 import Header from './components/Header';
 import RoomJoin from './components/RoomJoin';
+import Chat from './components/Chat';
 import './App.css';
 
 function App() {
@@ -12,17 +13,19 @@ function App() {
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [strokes, setStrokes] = useState([]);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [showPlatformTools, setShowPlatformTools] = useState(true);
+  const [showPlatformTools, setShowPlatformTools] = useState(false);
   const [activeView, setActiveView] = useState('home');
   const [roomId, setRoomId] = useState('');
   const [joinedRoom, setJoinedRoom] = useState(false);
   const [userName, setUserName] = useState('');
   const [connectedUsers, setConnectedUsers] = useState([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const ws = useRef(null);
 
   // Polling for board updates when WebSocket is not available
   useEffect(() => {
     let pollInterval;
+    let userActivityInterval;
     
     if (joinedRoom && roomId && (!ws.current || ws.current.readyState !== WebSocket.OPEN)) {
       console.log('WebSocket not available, starting polling for board updates');
@@ -42,9 +45,19 @@ function App() {
       }, 3000); // Poll every 3 seconds
     }
 
+    // Keep user active by pinging the API every 15 seconds
+    if (joinedRoom && roomId) {
+      userActivityInterval = setInterval(() => {
+        joinUserAPI(); // This updates the last_seen timestamp
+      }, 15000);
+    }
+
     return () => {
       if (pollInterval) {
         clearInterval(pollInterval);
+      }
+      if (userActivityInterval) {
+        clearInterval(userActivityInterval);
       }
     };
   }, [joinedRoom, roomId, strokes]);
@@ -52,7 +65,11 @@ function App() {
   useEffect(() => {
     if (activeView === 'whiteboard' && joinedRoom && roomId) {
       fetchBoardState();
+      joinUserAPI(); // Join user via API
       setupWebSocket();
+      
+      // Poll for active users every 10 seconds
+      const userPollInterval = setInterval(fetchActiveUsers, 10000);
       
       // Add keyboard shortcuts
       const handleKeyPress = (e) => {
@@ -69,6 +86,7 @@ function App() {
       window.addEventListener('keydown', handleKeyPress);
       return () => {
         window.removeEventListener('keydown', handleKeyPress);
+        clearInterval(userPollInterval);
         if (ws.current) {
           ws.current.close();
         }
@@ -90,6 +108,40 @@ function App() {
       setStrokes(data.strokes || []);
     } catch (error) {
       console.error('Error fetching board state:', error);
+    }
+  };
+
+  const joinUserAPI = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/boards/${roomId}/join_user/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_name: userName || 'Anonymous User'
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setConnectedUsers(data.active_users || []);
+        console.log('User joined:', data);
+      }
+    } catch (error) {
+      console.error('Error joining user:', error);
+    }
+  };
+
+  const fetchActiveUsers = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/boards/${roomId}/active_users/`);
+      if (response.ok) {
+        const data = await response.json();
+        setConnectedUsers(data.active_users || []);
+        console.log('Active users:', data.active_users);
+      }
+    } catch (error) {
+      console.error('Error fetching active users:', error);
     }
   };
 
@@ -258,6 +310,8 @@ function App() {
               connectedUsers={connectedUsers}
               userName={userName}
               isWebSocketConnected={ws.current && ws.current.readyState === WebSocket.OPEN}
+              onChatToggle={() => setIsChatOpen(!isChatOpen)}
+              isChatOpen={isChatOpen}
             />
             <div className="whiteboard-container">
               <Whiteboard
@@ -337,18 +391,31 @@ function App() {
 
   return (
     <div className="App">
-      <Header activeView={activeView} setActiveView={setActiveView} />
-      
-      {renderContent()}
+        <Header 
+          activeView={activeView} 
+          setActiveView={setActiveView}
+          showPlatformTools={showPlatformTools}
+          setShowPlatformTools={setShowPlatformTools}
+        />      {renderContent()}
 
-      {showPlatformTools && (
-        <PlatformTools 
-          onClose={() => setShowPlatformTools(false)}
-          onToolSelect={(toolName) => {
-            if (toolName === 'Whiteboard') {
-              setActiveView('whiteboard');
-            }
-          }}
+      <PlatformTools 
+        isOpen={showPlatformTools}
+        onToggle={() => setShowPlatformTools(!showPlatformTools)}
+        onToolSelect={(toolName) => {
+          if (toolName === 'Whiteboard') {
+            setActiveView('whiteboard');
+          }
+        }}
+        onChatClick={() => setIsChatOpen(!isChatOpen)}
+      />
+      
+      {isChatOpen && (
+        <Chat 
+          isOpen={isChatOpen}
+          roomId={roomId}
+          userName={userName}
+          ws={ws.current}
+          onClose={() => setIsChatOpen(false)}
         />
       )}
     </div>

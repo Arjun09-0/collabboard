@@ -101,6 +101,28 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
                     'sender_channel': self.channel_name
                 }
             )
+        elif message_type == 'chat_message':
+            # Handle chat messages
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'chat_message',
+                    'message': data['message'],
+                    'user_name': data['user_name'],
+                    'timestamp': data['timestamp']
+                }
+            )
+        elif message_type == 'typing' or message_type == 'user_typing':
+            # Handle typing indicators
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'typing_indicator',
+                    'user_name': data['user_name'],
+                    'is_typing': data.get('is_typing', True),
+                    'sender_channel': self.channel_name
+                }
+            )
 
     async def draw_stroke(self, event):
         stroke = event['stroke']
@@ -139,6 +161,26 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             'user_name': event['user_name'],
             'users_list': event['users_list']
         }))
+
+    async def chat_message(self, event):
+        # Send chat message to all clients
+        await self.send(text_data=json.dumps({
+            'type': 'chat_message',
+            'message': event['message'],
+            'user_name': event['user_name'],
+            'timestamp': event['timestamp']
+        }))
+
+    async def typing_indicator(self, event):
+        sender_channel = event.get('sender_channel')
+        
+        # Don't send back to the sender
+        if sender_channel != self.channel_name:
+            await self.send(text_data=json.dumps({
+                'type': 'user_typing',
+                'user_name': event['user_name'],
+                'is_typing': event.get('is_typing', True)
+            }))
 
     @database_sync_to_async
     def get_board(self):

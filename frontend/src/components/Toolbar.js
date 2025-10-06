@@ -13,7 +13,9 @@ const Toolbar = ({
   roomId,
   connectedUsers = [],
   userName,
-  isWebSocketConnected = false
+  isWebSocketConnected = false,
+  onChatToggle,
+  isChatOpen = false
 }) => {
   const tools = [
     { id: 'pen', label: 'Pen', icon: '✏️', shortcut: 'P' },
@@ -108,6 +110,18 @@ const Toolbar = ({
           />
           <span className="width-value">{strokeWidth}px</span>
         </div>
+        
+        {roomId && onChatToggle && (
+          <div className="chat-section">
+            <button 
+              className={`chat-toggle-btn ${isChatOpen ? 'active' : ''}`}
+              onClick={onChatToggle}
+              title="Toggle Chat"
+            >
+              💬 Chat
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="toolbar-section">

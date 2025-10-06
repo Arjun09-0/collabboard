@@ -1,6 +1,6 @@
 import React from 'react';
 
-const PlatformTools = ({ onClose, onToolSelect }) => {
+const PlatformTools = ({ isOpen, onToggle, onToolSelect, onChatClick }) => {
   const tools = [
     { id: 'whiteboard', name: 'Whiteboard', icon: '🎨', color: '#00ff88' },
     { id: 'ide', name: 'IDE', icon: '💻', color: '#0099ff' },
@@ -12,10 +12,10 @@ const PlatformTools = ({ onClose, onToolSelect }) => {
   ];
 
   return (
-    <div className="platform-tools">
+    <div className={`platform-tools ${isOpen ? 'open' : 'closed'}`}>
       <div className="platform-tools-header">
         <h3>Platform Tools</h3>
-        <button className="close-btn" onClick={onClose}>×</button>
+        <button className="close-btn" onClick={onToggle}>×</button>
       </div>
       
       <div className="tools-list">
@@ -23,7 +23,13 @@ const PlatformTools = ({ onClose, onToolSelect }) => {
           <div 
             key={tool.id}
             className="tool-item"
-            onClick={() => onToolSelect(tool.name)}
+            onClick={() => {
+              if (tool.name === 'Chat' && onChatClick) {
+                onChatClick();
+              } else {
+                onToolSelect(tool.name);
+              }
+            }}
             style={{ '--tool-color': tool.color }}
           >
             <div className="tool-icon">{tool.icon}</div>
