@@ -7,6 +7,10 @@ import RoomJoin from './components/RoomJoin';
 import Chat from './components/Chat';
 import './App.css';
 
+// Backend URL configuration
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const WS_URL = BACKEND_URL.replace('http', 'ws');
+
 function App() {
   const [tool, setTool] = useState('pen');
   const [strokeColor, setStrokeColor] = useState('#00ff88');
@@ -31,7 +35,7 @@ function App() {
       console.log('WebSocket not available, starting polling for board updates');
       pollInterval = setInterval(async () => {
         try {
-          const response = await fetch(`http://localhost:8000/api/boards/${roomId}/`);
+          const response = await fetch(`${BACKEND_URL}/api/boards/${roomId}/`);
           const data = await response.json();
           
           // Only update if there are different strokes than we currently have
@@ -102,7 +106,7 @@ function App() {
 
   const fetchBoardState = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/boards/${roomId}/`);
+      const response = await fetch(`${BACKEND_URL}/api/boards/${roomId}/`);
       const data = await response.json();
       console.log('Fetched board data:', data);
       setStrokes(data.strokes || []);
@@ -113,7 +117,7 @@ function App() {
 
   const joinUserAPI = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/boards/${roomId}/join_user/`, {
+      const response = await fetch(`${BACKEND_URL}/api/boards/${roomId}/join_user/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +138,7 @@ function App() {
 
   const fetchActiveUsers = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/boards/${roomId}/active_users/`);
+      const response = await fetch(`${BACKEND_URL}/api/boards/${roomId}/active_users/`);
       if (response.ok) {
         const data = await response.json();
         setConnectedUsers(data.active_users || []);
@@ -146,7 +150,7 @@ function App() {
   };
 
   const setupWebSocket = () => {
-    ws.current = new WebSocket(`ws://localhost:8000/ws/whiteboard/${roomId}/`);
+    ws.current = new WebSocket(`${WS_URL}/ws/whiteboard/${roomId}/`);
     
     ws.current.onopen = () => {
       console.log('WebSocket connected to room:', roomId);
@@ -240,7 +244,7 @@ function App() {
       console.log('WebSocket not connected, clearing via REST API');
       // Fallback: clear via REST API
       try {
-        await fetch(`http://localhost:8000/api/boards/${roomId}/clear/`, {
+        await fetch(`${BACKEND_URL}/api/boards/${roomId}/clear/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -261,7 +265,7 @@ function App() {
     
     // Fetch board state immediately when joining
     try {
-      const response = await fetch(`http://localhost:8000/api/boards/${newRoomId}/`);
+      const response = await fetch(`${BACKEND_URL}/api/boards/${newRoomId}/`);
       const data = await response.json();
       console.log('Fetched board data on join:', data);
       setStrokes(data.strokes || []);

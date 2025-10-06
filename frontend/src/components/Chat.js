@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// Backend URL configuration
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+
 const Chat = ({ isOpen, onClose, roomId, userName, ws }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -86,7 +89,7 @@ const Chat = ({ isOpen, onClose, roomId, userName, ws }) => {
 
   const sendMessageViaAPI = async (messageData) => {
     try {
-      const response = await fetch('http://localhost:8000/api/chat/', {
+      const response = await fetch(`${BACKEND_URL}/api/chat/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,7 +112,7 @@ const Chat = ({ isOpen, onClose, roomId, userName, ws }) => {
   // Fetch messages via API when WebSocket is not available
   const fetchMessages = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/chat/?room_id=${roomId}`);
+      const response = await fetch(`${BACKEND_URL}/api/chat/?room_id=${roomId}`);
       if (response.ok) {
         const data = await response.json();
         const fetchedMessages = data.map(msg => ({
