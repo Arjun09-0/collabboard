@@ -9,7 +9,7 @@ import './App.css';
 
 // Backend URL configuration
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
-const WS_URL = BACKEND_URL.replace('http', 'ws');
+const WS_URL = BACKEND_URL.replace('https', 'wss').replace('http', 'ws');
 
 function App() {
   const [tool, setTool] = useState('pen');
@@ -181,12 +181,22 @@ function App() {
       }
     };
 
-    ws.current.onclose = () => {
-      console.log('WebSocket disconnected');
+    ws.current.onclose = (event) => {
+      console.log('WebSocket disconnected:', event.code, event.reason);
+      // Try to reconnect after 3 seconds if connection was lost
+      if (event.code !== 1000) { // 1000 = normal closure
+        setTimeout(() => {
+          if (joinedRoom && roomId) {
+            console.log('Attempting WebSocket reconnection...');
+            setupWebSocket();
+          }
+        }, 3000);
+      }
     };
 
     ws.current.onerror = (error) => {
       console.error('WebSocket error:', error);
+      console.log('WebSocket URL:', `${WS_URL}/ws/whiteboard/${roomId}/`);
     };
   };
 
@@ -202,16 +212,17 @@ function App() {
         type: 'draw_stroke',
         stroke: stroke
       }));
+      console.log('Stroke sent via WebSocket');
     } else {
       console.log('WebSocket not connected, sending via REST API');
       // Fallback: save via REST API
       try {
-        const currentBoardResponse = await fetch(`http://localhost:8000/api/boards/${roomId}/`);
+        const currentBoardResponse = await fetch(`${BACKEND_URL}/api/boards/${roomId}/`);
         const currentBoard = await currentBoardResponse.json();
         
         const updatedStrokes = [...(currentBoard.strokes || []), stroke];
         
-        await fetch(`http://localhost:8000/api/boards/${roomId}/`, {
+        await fetch(`${BACKEND_URL}/api/boards/${roomId}/`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
